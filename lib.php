@@ -1,16 +1,16 @@
 <?php
-class ArrayTable {
-    private array $columns;
+class Table {
+    private array $names;
     private array $values;
     function __construct($array) {
         $this->values = $array;
-        $this->columns = array_keys($array[0]);
+        $this->names = array_keys($array[0]);
     }
     public function get_values(): array {
         return $this->values;
     }
-    public function get_columns(): array {
-        return $this->columns;
+    public function get_names(): array {
+        return $this->names;
     }
 }
 class Database {
@@ -19,14 +19,6 @@ class Database {
     public array $last_assoc_array;
     public array $last_collumn_names;
     private bool $debug_mode = true;
-    function __construct(?string $hostname, ?string $username, ?string $password, ?string $database, ?int $port = null) {
-        $this->sql = @new mysqli($hostname, $username, $password, $database, $port);
-        if ($this->sql->connect_error) {
-            throw new Exception("Connection failed: " . $this->sql->connect_error);
-        } else if ($this->debug_mode) {
-            echo "Connection to $database successful.";
-        }
-    }
     private function get_types(array $array): string {
         $types = "";
         foreach ($array as $value) {
@@ -86,17 +78,23 @@ class Database {
     public function get_sql() {
         return $this->sql;
     }
-    public function collumn_names(?mysqli_result $result = null) {
-        if (empty($result)) {
+    public function collumn_names(?mysqli_result $result = null): array|false {
+        if (empty($result) && empty($this->last_result)) {
+            return false;
+        } else if (empty($result)) {
             $result = $this->last_result;
         }
-        $return = array_keys($result->fetch_assoc(MYSQLI_ASSOC));
+        $return = array_map(
+            fn($n) => $n->name,
+            $result->fetch_fields()
+        );
         $this->last_collumn_names = $return;
         return $return;
     }
     public function assoc_array(?mysqli_result $result = null) {
-        $return = array();
-        if (empty($result)) {
+        if (empty($result) && empty($this->last_result)) {
+            return false;
+        } else if (empty($result)) {
             $result = $this->last_result;
         }
         $return = $result->fetch_all(MYSQLI_ASSOC);
@@ -110,7 +108,7 @@ class Database {
         } else {
             $output = $result;
         }
-        return new ArrayTable($this->assoc_array($output));
+        return new Table($this->assoc_array($output));
     }
     public function insert(string $table, array $columns, array $values) {
         $placeholders = implode(",", array_fill(0, count($columns), "?"));
@@ -159,6 +157,17 @@ class Database {
         }
         
         $this->execute($table, "UPDATE", $query, $values);
+    }
+    function __construct(?string $hostname, ?string $username, ?string $password, ?string $database, ?int $port = null) {
+        $this->sql = @new mysqli($hostname, $username, $password, $database, $port);
+        if ($this->sql->connect_error) {
+            throw new Exception("<br>Connection failed: " . $this->sql->connect_error . "<br>");
+        } else if ($this->debug_mode) {
+            echo "<br>Connection to $database successful.<br>";
+        }
+    }
+    function __destruct() {
+        $this->sql->close();
     }
 }
 ?>
