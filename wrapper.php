@@ -1,4 +1,7 @@
 <?php
+declare(strict_types=1);
+namespace MySQLiWrapper;
+use mysqli, mysqli_result;
 class Table {
     private array $names;
     private array $values;
@@ -14,10 +17,14 @@ class Table {
     }
 }
 class Database {
+    private array $properties = ["sql", "result", "assoc_array", "collumn_names"];
     private mysqli $sql;
-    public mysqli_result|bool $last_result;
-    public array $last_assoc_array;
-    public array $last_collumn_names;
+    /** @var array $result Last returned result or false in the case of no return. */
+    public mysqli_result|bool $result;
+    /** @var array $assoc_array Last returned associative array. */
+    private array $assoc_array; 
+    /** @var array $collumn_names Last returned names of columns. */
+    private array $collumn_names;
     private bool $debug_mode = true;
     private function get_types(array $array): string {
         $types = "";
@@ -35,7 +42,7 @@ class Database {
                     ob_start();
                     var_dump($value);
                     $result = ob_get_clean();
-                    throw new Exception("Error when processing data type of $result. Available types: Integers, Floats, Strings and Booleans.");
+                    throw new \Exception("Error when processing data type of $result. Available types: Integers, Floats, Strings and Booleans.");
                     break;
             }
         }
@@ -60,51 +67,54 @@ class Database {
             }
 
             if (!$statement->execute()) {
-                throw new Exception("Chyba při $command příkazu do $table,\nQUERY: $query,\nTYPES: $types", 1);
+                throw new \Exception("Chyba při $command příkazu do $table,\nQUERY: $query,\nTYPES: $types", 1);
             }
             if ($return) {
                 $out = $statement->get_result();
-                $this->last_result = $out;
+                $this->result = $out;
             } else {
-                $this->last_result = $statement->get_result();
+                $this->result = $statement->get_result();
             }
             $statement->close();
         } else {
-            throw new Exception("Chyba při přopojování do $this->sql", 1);
+            throw new \Exception("Chyba při přopojování do $this->sql", 1);
             $statement->close();
         }
         return $out;
     }
-    public function get_sql() {
-        return $this->sql;
+    public function get(string $var_name): mixed {
+        return (in_array($var_name, $this->properties)) ? $this->$var_name : null;
+    }
+    public function get_public_properties(): string {
+        return "\n Accesible properties: ".implode(", ", $this->properties);
     }
     public function collumn_names(?mysqli_result $result = null): array|false {
-        if (empty($result) && empty($this->last_result)) {
+        if (empty($result) && empty($this->result)) {
             return false;
         } else if (empty($result)) {
-            $result = $this->last_result;
+            $result = $this->result;
         }
         $return = array_map(
             fn($n) => $n->name,
             $result->fetch_fields()
         );
-        $this->last_collumn_names = $return;
+        $this->collumn_names = $return;
         return $return;
     }
     public function assoc_array(?mysqli_result $result = null) {
-        if (empty($result) && empty($this->last_result)) {
+        if (empty($result) && empty($this->result)) {
             return false;
         } else if (empty($result)) {
-            $result = $this->last_result;
+            $result = $this->result;
         }
         $return = $result->fetch_all(MYSQLI_ASSOC);
-        $this->last_assoc_array = $return;
+        $this->assoc_array = $return;
         return $return;
     }
     public function get_array_table(?mysqli_result $result = null) {
         $output = array();
         if (empty($result)) {
-            $output = $this->last_result;
+            $output = $this->result;
         } else {
             $output = $result;
         }
@@ -161,7 +171,7 @@ class Database {
     function __construct(?string $hostname, ?string $username, ?string $password, ?string $database, ?int $port = null) {
         $this->sql = @new mysqli($hostname, $username, $password, $database, $port);
         if ($this->sql->connect_error) {
-            throw new Exception("<br>Connection failed: " . $this->sql->connect_error . "<br>");
+            throw new \Exception("<br>Connection failed: " . $this->sql->connect_error . "<br>");
         } else if ($this->debug_mode) {
             echo "<br>Connection to $database successful.<br>";
         }
