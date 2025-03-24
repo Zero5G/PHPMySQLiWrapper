@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace MySQLiWrapper;
+namespace Wrapper\MySQLi;
 use mysqli, mysqli_result;
 class Table {
     private array $names;
@@ -16,7 +16,13 @@ class Table {
         return $this->names;
     }
 }
-class Database {
+/**
+ * Access is wrapper around MySQLi that makes simple operations quicker.
+ * 
+ * The connection is closed on __destruct (on the last reference of the created object).
+ */
+class Access {
+    /** @var array $properties List of properties available thougth the `get()` function */
     private array $properties = ["sql", "result", "assoc_array", "collumn_names"];
     private mysqli $sql;
     /** @var array $result Last returned result or false in the case of no return. */
@@ -26,6 +32,12 @@ class Database {
     /** @var array $collumn_names Last returned names of columns. */
     private array $collumn_names;
     private bool $debug_mode = true;
+    /** Get the type of every varibable in an array and write the type to a string
+     * 
+     * Get's the type of every varibable in an array and write the type to a string for MySQLi bind_param()
+     * @var array $array Array of variables
+     * @return string $types String of parameter types for MySQLi
+     */
     private function get_types(array $array): string {
         $types = "";
         foreach ($array as $value) {
@@ -48,6 +60,15 @@ class Database {
         }
         return $types;
     }
+    /** Create parameters for a MySQLi prepared statement
+     * 
+     * Creates parameters separeted with the selected separator for a MySQLi prepared statement
+     * 
+     * (adds =? behind each parameters)
+     * @var array $parameters Array of selected parameters 
+     * @var string $separator Separator of each parameter
+     * @return string Returns a string of separated parameters
+     */
     private function create_parameters(array $parameters, string $separator): string {
         return implode($separator, 
             array_map(
@@ -85,8 +106,8 @@ class Database {
     public function get(string $var_name): mixed {
         return (in_array($var_name, $this->properties)) ? $this->$var_name : null;
     }
-    public function get_public_properties(): string {
-        return "\n Accesible properties: ".implode(", ", $this->properties);
+    public function get_public_properties(bool $array = false): string|array {
+        return $array ? $this->properties : implode(", ", $this->properties);
     }
     public function collumn_names(?mysqli_result $result = null): array|false {
         if (empty($result) && empty($this->result)) {
@@ -101,7 +122,7 @@ class Database {
         $this->collumn_names = $return;
         return $return;
     }
-    public function assoc_array(?mysqli_result $result = null) {
+    public function assoc_array(?mysqli_result $result = null): array|false {
         if (empty($result) && empty($this->result)) {
             return false;
         } else if (empty($result)) {
@@ -111,15 +132,16 @@ class Database {
         $this->assoc_array = $return;
         return $return;
     }
-    public function get_array_table(?mysqli_result $result = null) {
-        $output = array();
-        if (empty($result)) {
-            $output = $this->result;
-        } else {
-            $output = $result;
-        }
-        return new Table($this->assoc_array($output));
-    }
+    /** Doesn't have exceptions/doesn't return false */
+    // public function get_array_table(?mysqli_result $result = null): Table {
+    //     $output = array();
+    //     if (empty($result)) {
+    //         $output = $this->result;
+    //     } else {
+    //         $output = $result;
+    //     }
+    //     return new Table($this->assoc_array($output));
+    // }
     public function insert(string $table, array $columns, array $values) {
         $placeholders = implode(",", array_fill(0, count($columns), "?"));
         $collums = implode(",", $columns);
@@ -168,6 +190,26 @@ class Database {
         
         $this->execute($table, "UPDATE", $query, $values);
     }
+    function autocommit(bool $on) {
+        if (!$this->sql->autocommit($on)) {
+            throw new \Exception("Error: Can't configure auto commit.", 1);
+        }
+        if ($this->debug_mode) {
+            if ($on) {
+                echo "\nEnabling autocommit.";
+            } else {
+                echo "\nDisabling autocommit.";
+            }
+        }
+    }
+    function commit() {
+        if (!$this->sql->commit()) {
+            throw new \Exception("Error: Can't commit transactions.", 1);
+        }
+        if ($this->debug_mode) {
+            echo "<div>DEBUG: Commiting stored transactions.</div>";
+        }
+    }
     function __construct(?string $hostname, ?string $username, ?string $password, ?string $database, ?int $port = null) {
         $this->sql = @new mysqli($hostname, $username, $password, $database, $port);
         if ($this->sql->connect_error) {
@@ -177,6 +219,7 @@ class Database {
         }
     }
     function __destruct() {
+        //if ($this->debug_mode) { echo Debug::WriteDebug(); }
         $this->sql->close();
     }
 }
