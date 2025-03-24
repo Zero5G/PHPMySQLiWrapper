@@ -2,24 +2,26 @@
 declare(strict_types=1);
 namespace Wrapper\MySQLi;
 use mysqli, mysqli_result;
-class Table {
-    private array $names;
-    private array $values;
-    function __construct($array) {
-        $this->values = $array;
-        $this->names = array_keys($array[0]);
-    }
-    public function get_values(): array {
-        return $this->values;
-    }
-    public function get_names(): array {
-        return $this->names;
-    }
-}
+// class Table {
+//     private array $names;
+//     private array $values;
+//     function __construct($array) {
+//         $this->values = $array;
+//         $this->names = array_keys($array[0]);
+//     }
+//     public function get_values(): array {
+//         return $this->values;
+//     }
+//     public function get_names(): array {
+//         return $this->names;
+//     }
+// }
 /**
  * Access is wrapper around MySQLi that makes simple operations quicker.
  * 
  * The connection is closed on __destruct (on the last reference of the created object).
+ * 
+ * This wrapper works only for: Integers, Floats, Strings and Booleans
  */
 class Access {
     /** @var array $properties List of properties available thougth the `get()` function */
@@ -35,7 +37,7 @@ class Access {
     /** Get the type of every varibable in an array and write the type to a string
      * 
      * Get's the type of every varibable in an array and write the type to a string for MySQLi bind_param()
-     * @var array $array Array of variables
+     * @param array $array Array of variables
      * @return string $types String of parameter types for MySQLi
      */
     private function get_types(array $array): string {
@@ -65,8 +67,8 @@ class Access {
      * Creates parameters separeted with the selected separator for a MySQLi prepared statement
      * 
      * (adds =? behind each parameters)
-     * @var array $parameters Array of selected parameters 
-     * @var string $separator Separator of each parameter
+     * @param array $parameters Array of selected parameters 
+     * @param string $separator Separator of each parameter
      * @return string Returns a string of separated parameters
      */
     private function create_parameters(array $parameters, string $separator): string {
@@ -77,10 +79,20 @@ class Access {
             )
         );
     }
+    /** Executes an SQL query
+     * 
+     * This function prepares an SQL statemenet using the provides query and parameters
+     * @param  string $table SQL table name
+     * @param  string $command This is used for debug_mode
+     * @param  string $query SQL query
+     * @param  array $values Values to be added to the prepared statement
+     * @param  bool $return If the query has a result
+     * @return mysqli_result|false Result of query or false if there is no result
+     */
     private function execute(string $table, string $command, string $query, array $values, ?bool $return = false): mysqli_result|false {
         $out = false;
         if ($this->debug_mode) {
-            echo $query;
+            echo "\nDEBUG: Query: ". $query;
         }
         if ($statement = $this->sql->prepare($query)) {
             if (!empty($types = $this->get_types($values))) {
@@ -99,14 +111,21 @@ class Access {
             $statement->close();
         } else {
             throw new \Exception("Chyba při přopojování do $this->sql", 1);
-            $statement->close();
         }
         return $out;
     }
+    /** Get values of a propertity
+     * @param string Name of an available property
+     * @return mixed Returns value of an available property
+     */
     public function get(string $var_name): mixed {
         return (in_array($var_name, $this->properties)) ? $this->$var_name : null;
     }
-    public function get_public_properties(bool $array = false): string|array {
+    /** Get a list of propertities available with get()
+     * @param bool $array If the function should return an array or string
+     * @return string|array Propertities available with get()
+     */
+    public function get_properties(bool $array = false): string|array {
         return $array ? $this->properties : implode(", ", $this->properties);
     }
     public function collumn_names(?mysqli_result $result = null): array|false {
@@ -153,7 +172,7 @@ class Access {
         $query = "DELETE FROM $table WHERE " . $this->create_parameters($conditions, " AND ");
         $this->execute($table, "DELETE", $query, $values, false);
     }
-    public function select(string $table, array|string $columns, ?array $conditions = null, ?array $values = null, ?string $sort_by = null, ?string $sort = "ASC", ?int $limit = null): mysqli_result|false {
+    public function select(string $table, array|string $columns, ?array $conditions = null, ?array $values = null, ?string $sort_by = null, ?string $sort = "ASC", ?int $limit = null, ?int $offset = null): mysqli_result|false {
         $columns_str = (gettype($columns) == "array") ? implode(",", $columns) : $columns;
         $values = isset($values) ? $values : array();
 
@@ -173,6 +192,12 @@ class Access {
         if (isset($limit)) {
             array_push($values, $limit);
             $query .= " LIMIT ?";
+
+            // Offset requires limit
+            if (isset($offset)) {
+                array_push($values, $offset);
+                $query .= " OFFSET ?";
+            }
         }
 
         return $this->execute($table, "SELECT", $query, $values, true);
@@ -196,9 +221,9 @@ class Access {
         }
         if ($this->debug_mode) {
             if ($on) {
-                echo "\nEnabling autocommit.";
+                echo "\nDEBUG: Enabling autocommit.";
             } else {
-                echo "\nDisabling autocommit.";
+                echo "\nDEBUG: Disabling autocommit.";
             }
         }
     }
@@ -207,19 +232,19 @@ class Access {
             throw new \Exception("Error: Can't commit transactions.", 1);
         }
         if ($this->debug_mode) {
-            echo "<div>DEBUG: Commiting stored transactions.</div>";
+            echo "\nDEBUG: Commiting stored transactions.\n";
         }
     }
     function __construct(?string $hostname, ?string $username, ?string $password, ?string $database, ?int $port = null) {
         $this->sql = @new mysqli($hostname, $username, $password, $database, $port);
         if ($this->sql->connect_error) {
-            throw new \Exception("<br>Connection failed: " . $this->sql->connect_error . "<br>");
+            throw new \Exception("\nDEBUG: Connection failed: ". $this->sql->connect_error ."\n");
         } else if ($this->debug_mode) {
-            echo "<br>Connection to $database successful.<br>";
+            echo "\nDEBUG: Connection to $database successful.\n";
         }
     }
     function __destruct() {
-        //if ($this->debug_mode) { echo Debug::WriteDebug(); }
+        if ($this->debug_mode) { echo "\nDEBUG: Closing MySQLi connection the SQL database\n"; }
         $this->sql->close();
     }
 }
