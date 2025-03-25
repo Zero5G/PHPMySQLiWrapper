@@ -28,12 +28,13 @@ class Table {
 class Access {
     /** @var array $properties List of properties available thougth the `get()` function */
     private array $properties = ["sql", "result", "assoc_array", "collumn_names"];
+    /** @var mysqli $sql SQL connection using MySQLi (mysqli) (Accesible with get())*/
     private mysqli $sql;
-    /** @var array $result Last returned result or false in the case of no return. */
+    /** @var array $result Last returned result or false in the case of no return. (Accesible with get()) */
     public mysqli_result|bool $result;
-    /** @var array $assoc_array Last returned associative array. */
+    /** @var array $assoc_array Last returned associative array. (Accesible with get()) */
     private array $assoc_array; 
-    /** @var array $collumn_names Last returned names of columns. */
+    /** @var array $collumn_names Last returned names of columns. (Accesible with get()) */
     private array $collumn_names;
     private bool $debug_mode = true;
     /** Get the type of every varibable in an array and write the type to a string
