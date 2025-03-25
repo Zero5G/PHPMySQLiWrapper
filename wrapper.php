@@ -130,6 +130,11 @@ class Access {
     public function get_properties(bool $array = false): string|array {
         return $array ? $this->properties : implode(", ", $this->properties);
     }
+    /** Turn a MySQLi result (mysqli_result) to an array of columns names
+     * 
+     * @param mysqli_result If left empty last result is used
+     * @return array|false Returns an array or false if there is no result
+     */
     public function collumn_names(?mysqli_result $result = null): array|false {
         if (empty($result) && empty($this->result)) {
             return false;
@@ -143,6 +148,11 @@ class Access {
         $this->collumn_names = $return;
         return $return;
     }
+    /** Turn a MySQLi result (mysqli_result) to an associative array
+     * 
+     * @param mysqli_result If left empty last result is used
+     * @return array|false Returns an array or false if there is no result
+     */
     public function assoc_array(?mysqli_result $result = null): array|false {
         if (empty($result) && empty($this->result)) {
             return false;
