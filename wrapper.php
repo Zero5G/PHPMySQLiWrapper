@@ -2,20 +2,22 @@
 declare(strict_types=1);
 namespace Wrapper\MySQLi;
 use mysqli, mysqli_result;
-// class Table {
-//     private array $names;
-//     private array $values;
-//     function __construct($array) {
-//         $this->values = $array;
-//         $this->names = array_keys($array[0]);
-//     }
-//     public function get_values(): array {
-//         return $this->values;
-//     }
-//     public function get_names(): array {
-//         return $this->names;
-//     }
-// }
+/*
+class Table {
+    private array $names;
+    private array $values;
+    function __construct($array) {
+        $this->values = $array;
+        $this->names = array_keys($array[0]);
+    }
+    public function get_values(): array {
+        return $this->values;
+    }
+    public function get_names(): array {
+        return $this->names;
+    }
+}
+*/
 /**
  * Access is wrapper around MySQLi that makes simple operations quicker.
  * 
@@ -151,7 +153,7 @@ class Access {
         $this->assoc_array = $return;
         return $return;
     }
-    /** Doesn't have exceptions/doesn't return false */
+    // REWRITE THIS
     // public function get_array_table(?mysqli_result $result = null): Table {
     //     $output = array();
     //     if (empty($result)) {
@@ -161,6 +163,12 @@ class Access {
     //     }
     //     return new Table($this->assoc_array($output));
     // }
+    /** Generates an SQL INSERT query and executes it
+     * 
+     * @param string $table Name of a table in the current database
+     * @param array $columns Array of column names in the table
+     * @param array $values Array of values names to be inserted
+     */
     public function insert(string $table, array $columns, array $values) {
         $placeholders = implode(",", array_fill(0, count($columns), "?"));
         $collums = implode(",", $columns);
@@ -168,11 +176,33 @@ class Access {
         $query = "INSERT $table ($collums) VALUES ($placeholders)";
         $this->execute($table, "INSERT", $query, $values, false);
     }
+    /** Generates an SQL DELETE query and executes it
+     * 
+     * @param string $table Name of a table in the current database
+     * @param array $conditions Array of column names in the tables used for WHERE
+     * @param array $values Array of values in the table used for WHERE
+     */
     public function delete(string $table, array $conditions, array $values) {
         $query = "DELETE FROM $table WHERE " . $this->create_parameters($conditions, " AND ");
         $this->execute($table, "DELETE", $query, $values, false);
     }
-    public function select(string $table, array|string $columns, ?array $conditions = null, ?array $values = null, ?string $sort_by = null, ?string $sort = "ASC", ?int $limit = null, ?int $offset = null): mysqli_result|false {
+    /** Generates an SQL SELECT query and executes it
+     * 
+     * @param string $table Name of a table in the current database
+     * @param array|string $columns Array of column names in the table
+     * @param ?array $conditions Array of column names in the tables used for WHERE
+     * @param ?array $values Array of values in the table used for WHERE
+     * @param ?string $sort_by Name of a column that is used for ORDER BY
+     * @param ?string $sort Can be either ASC or DESC else will do nothing (it is ASC by default)
+     * @param ?int $limit Limits the number of rows in the result
+     * @param ?int $offset Offsets the number of rows in the result (can only be used with limit)
+     * 
+     * @return mysqli_result|false Returns either false or a MySQLi result (mysqli_result)
+     */
+    public function select(
+        string $table, array|string $columns, ?array $conditions = null, ?array $values = null, 
+        ?string $sort_by = null, ?string $sort = "ASC", ?int $limit = null, ?int $offset = null
+        ): mysqli_result|false {
         $columns_str = (gettype($columns) == "array") ? implode(",", $columns) : $columns;
         $values = isset($values) ? $values : array();
 
@@ -185,9 +215,12 @@ class Access {
 
         if (isset($sort_by)) {
             $query .= " ORDER BY $sort_by";
-            $query .= " $sort";
-        }
 
+            // Accept only DESC or ASC
+            if ($sort == "DESC" || $sort == "ASC") {
+                $query .= " $sort";
+            }
+        }
 
         if (isset($limit)) {
             array_push($values, $limit);
@@ -202,6 +235,14 @@ class Access {
 
         return $this->execute($table, "SELECT", $query, $values, true);
     }
+    /** Generates an SQL UPDATE query and executes it
+     * 
+     * @param string $table Name of a table in the current database
+     * @param array|string $columns Array of column names in the table to be changed
+     * @param array $values Array of new values
+     * @param array $conditions Array of column names in the tables used for WHERE
+     * @param array $condition_values Array of values in the table used for WHERE
+     */
     public function update(string $table, array|string $columns, array $values, ?array $conditions, ?array $condition_values) {
         $query = "UPDATE $table SET ";
         array_push($values, $condition_values);
@@ -215,9 +256,15 @@ class Access {
         
         $this->execute($table, "UPDATE", $query, $values);
     }
+    /** Enables/disables autocommit
+     * 
+     * If disabled queries (transactions) won't be executed until the commit() function is ra
+     * 
+     * @param bool $on If autocommit should be switched on/off
+     */
     function autocommit(bool $on) {
         if (!$this->sql->autocommit($on)) {
-            throw new \Exception("Error: Can't configure auto commit.", 1);
+            throw new \Exception("Can't configure auto commit.", 1);
         }
         if ($this->debug_mode) {
             if ($on) {
@@ -227,22 +274,32 @@ class Access {
             }
         }
     }
+    /** This function commits queries (transactions) made when autocommit was off 
+     */
     function commit() {
         if (!$this->sql->commit()) {
-            throw new \Exception("Error: Can't commit transactions.", 1);
+            throw new \Exception("Can't commit transactions.", 1);
         }
         if ($this->debug_mode) {
             echo "\nDEBUG: Commiting stored transactions.\n";
         }
     }
+    /** Magic function construct, connects to a SQL databse using MySQLi
+     * @param string $hostname Can be either a host name or an IP address.
+     * @param string $username The MySQL username.
+     * @param string $password User password.
+     * @param string $database Defaults to "".
+     * @param int $port Specifies the port number for the MySQL server.
+     */
     function __construct(?string $hostname, ?string $username, ?string $password, ?string $database, ?int $port = null) {
         $this->sql = @new mysqli($hostname, $username, $password, $database, $port);
         if ($this->sql->connect_error) {
-            throw new \Exception("\nDEBUG: Connection failed: ". $this->sql->connect_error ."\n");
+            throw new \Exception("Connection failed: ". $this->sql->connect_error);
         } else if ($this->debug_mode) {
             echo "\nDEBUG: Connection to $database successful.\n";
         }
     }
+    /** Magic function destruct, closes the MySQLi connection*/
     function __destruct() {
         if ($this->debug_mode) { echo "\nDEBUG: Closing MySQLi connection the SQL database\n"; }
         $this->sql->close();
