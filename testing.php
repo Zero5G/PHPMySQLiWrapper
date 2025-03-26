@@ -8,6 +8,7 @@ $test = new Access("localhost", "xmanousek", "Ylrq2117", "xmanousek", 7070);
 // $test->delete("test", ["test"], ["16"]);
 // $test->insert("test", ["stra"], ["a"]);
 $test->select("test", "*");
+$test->update("test", "*", ["a"]);
 //$a = new Table(array());
 echo var_dump($test->get("result"));
 echo $test->get_properties();

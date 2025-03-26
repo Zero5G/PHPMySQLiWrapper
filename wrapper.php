@@ -254,7 +254,7 @@ class Access {
      * @param array $conditions Array of column names in the tables used for WHERE
      * @param array $condition_values Array of values in the table used for WHERE
      */
-    public function update(string $table, array|string $columns, array $values, ?array $conditions, ?array $condition_values) {
+    public function update(string $table, array|string $columns, array $values, ?array $conditions = null, ?array $condition_values = null) {
         $query = "UPDATE $table SET ";
         array_push($values, $condition_values);
 
@@ -269,7 +269,7 @@ class Access {
     }
     /** Enables/disables autocommit
      * 
-     * If disabled queries (transactions) won't be executed until the commit() function is ra
+     * If disabled queries (transactions) won't be executed until the commit() function is ran
      * 
      * @param bool $on If autocommit should be switched on/off
      */
@@ -285,8 +285,7 @@ class Access {
             }
         }
     }
-    /** This function commits queries (transactions) made when autocommit was off 
-     */
+    /** This function commits queries (transactions) made when autocommit was off */
     function commit() {
         if (!$this->sql->commit()) {
             throw new \Exception("Can't commit transactions.", 1);
@@ -302,7 +301,7 @@ class Access {
      * @param string $database Defaults to "".
      * @param int $port Specifies the port number for the MySQL server.
      */
-    function __construct(?string $hostname, ?string $username, ?string $password, ?string $database, ?int $port = null) {
+    function __construct(?string $hostname = null, ?string $username = null, ?string $password = null, ?string $database = null, ?int $port = null) {
         $this->sql = @new mysqli($hostname, $username, $password, $database, $port);
         if ($this->sql->connect_error) {
             throw new \Exception("Connection failed: ". $this->sql->connect_error);
@@ -310,7 +309,7 @@ class Access {
             echo "\nDEBUG: Connection to $database successful.\n";
         }
     }
-    /** Magic function destruct, closes the MySQLi connection*/
+    /** Magic function destruct, closes the MySQLi connection */
     function __destruct() {
         if ($this->debug_mode) { echo "\nDEBUG: Closing MySQLi connection the SQL database\n"; }
         $this->sql->close();
