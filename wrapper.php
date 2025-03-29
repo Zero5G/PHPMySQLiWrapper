@@ -118,6 +118,8 @@ class Access {
         return $out;
     }
     /** Get values of a propertity
+     * 
+     * Available properties: "sql", "result", "assoc_array", "collumn_names"
      * @param string Name of an available property
      * @return mixed Returns value of an available property
      */
@@ -301,7 +303,10 @@ class Access {
      * @param string $database Defaults to "".
      * @param int $port Specifies the port number for the MySQL server.
      */
-    function __construct(?string $hostname = null, ?string $username = null, ?string $password = null, ?string $database = null, ?int $port = null) {
+    function __construct(
+        ?string $hostname = null, ?string $username = null, ?string $password = null,
+        ?string $database = null, ?int $port = null, ?bool $enable_debug = false
+        ) {
         $this->sql = @new mysqli($hostname, $username, $password, $database, $port);
         if ($this->sql->connect_error) {
             throw new \Exception("Connection failed: ". $this->sql->connect_error);
