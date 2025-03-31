@@ -41,9 +41,12 @@ class Access {
      * 
      * Get's the type of every varibable in an array and write the type to a string for MySQLi bind_param()
      * @param array $array Array of variables
+     * @param array $blob_overrides An array of variable positions.
+     * This is used to override string types (in types for bind_param) to the BLOB type as PHP has no solid way of detecting it.
+     * There are no safety mechanism here, you can override an int or float (double).
      * @return string $types String of parameter types for MySQLi
      */
-    private function get_types(array $array): string {
+    private function get_types(array $array, ?array $blob_overrides = null): string {
         $types = "";
         foreach ($array as $value) {
             switch (gettype($value)) {
@@ -63,6 +66,11 @@ class Access {
                     break;
             }
         }
+        if (isset($blob_overrides)) {
+            foreach ($blob_overrides as $pos) {
+                $types = substr_replace($types, "b", $pos, 1);
+            }
+        }
         return $types;
     }
     /** Create parameters for a MySQLi prepared statement
@@ -77,7 +85,7 @@ class Access {
     private function create_parameters(array $parameters, string $separator): string {
         return implode($separator, 
             array_map(
-                fn ($c) => $c."=?",
+                fn ($p) => $p."=?",
                 $parameters
             )
         );
@@ -85,20 +93,22 @@ class Access {
     /** Executes an SQL query
      * 
      * This function prepares an SQL statemenet using the provides query and parameters
-     * @param  string $table SQL table name
-     * @param  string $command This is used for debug_mode
-     * @param  string $query SQL query
-     * @param  array $values Values to be added to the prepared statement
-     * @param  bool $return If the query has a result
+     * @param string $table SQL table name
+     * @param string $command This is used for debug_mode
+     * @param string $query SQL query
+     * @param array $values Values to be added to the prepared statement
+     * @param bool $return If the query has a result
+     * @param array $blob_overrides Used for $blob_overrides in get_types()
+     * DO NOT USE IF YOU DON'T KNOW WHAT YOU ARE DOING
      * @return mysqli_result|false Result of query or false if there is no result
      */
-    private function execute(string $table, string $command, string $query, array $values, ?bool $return = false): mysqli_result|false {
+    private function execute(string $table, string $command, string $query, array $values, ?bool $return = false, ?array $blob_overrides = null): mysqli_result|false {
         $out = false;
         if ($this->debug_mode) {
             echo "\nDEBUG: Query: ". $query;
         }
         if ($statement = $this->sql->prepare($query)) {
-            if (!empty($types = $this->get_types($values))) {
+            if (!empty($types = $this->get_types($values, $blob_overrides))) {
                 $statement->bind_param($types, ...$values);
             }
 
@@ -124,7 +134,7 @@ class Access {
      * @return mixed Returns value of an available property
      */
     public function get(string $var_name): mixed {
-        return (in_array($var_name, $this->properties)) ? $this->$var_name : null;
+        return (in_array($var_name, $this->properties)) ? $this->{$var_name} : null;
     }
     /** Get a list of propertities available with get()
      * @param bool $array If the function should return an array or string
@@ -181,13 +191,16 @@ class Access {
      * @param string $table Name of a table in the current database
      * @param array $columns Array of column names in the table
      * @param array $values Array of values names to be inserted
+     * @param array $blob_overrides Override string types to BLOB types
+     * 
+     * **DO NOT USE IF YOU DON'T KNOW WHAT YOU ARE DOING**
      */
-    public function insert(string $table, array $columns, array $values) {
+    public function insert(string $table, array $columns, array $values, ?array $blob_overrides = null) {
         $placeholders = implode(",", array_fill(0, count($columns), "?"));
         $collums = implode(",", $columns);
 
         $query = "INSERT $table ($collums) VALUES ($placeholders)";
-        $this->execute($table, "INSERT", $query, $values, false);
+        $this->execute($table, "INSERT", $query, $values, false, $blob_overrides);
     }
     /** Generates an SQL DELETE query and executes it
      * 
