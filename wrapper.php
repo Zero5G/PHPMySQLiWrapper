@@ -173,13 +173,14 @@ class Access
         array|string $parameters, 
         string $separator
     ): string {
+        $pMake = fn ($p) => str_contains($p, " ") ? $p : $p . "=?";
         if (!is_array($parameters)) {
-            return $parameters . "=?";
+            return $pMake($parameters);
         }
         return implode(
             $separator, 
             array_map(
-                fn ($p) => str_contains($p, " ") ? $p : $p . "=?",
+                $pMake,
                 $parameters
             )
         );
@@ -368,7 +369,7 @@ class Access
     ): mysqli_result|false {
 
         $columns_str = is_array($columns) ? implode(",", $columns) : $columns;
-        $values = isset($condition_values) ? $condition_values : array();
+        $values = isset($condition_values) ? $condition_values : null;
 
         $query = "SELECT $columns_str FROM $table";
 
